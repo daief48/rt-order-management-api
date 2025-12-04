@@ -12,12 +12,34 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
-    // View all orders
-    public function index()
-    {
-        $orders = Order::with('orderProducts.product')->orderBy('order_datetime','desc')->get();
-        return response()->json($orders);
+// View all orders with search & date filters
+public function index(Request $request)
+{
+    $query = Order::with('orderProducts')->orderBy('order_datetime', 'desc');
+
+    // Search by customer name or invoice number
+    if ($request->has('search') && !empty($request->search)) {
+        $search = $request->search;
+        $query->where(function($q) use ($search) {
+            $q->where('customer_name', 'like', "%{$search}%")
+              ->orWhere('invoice_number', 'like', "%{$search}%");
+        });
     }
+
+    // Filter by date range
+    if ($request->has('from') && $request->has('to') && $request->from && $request->to) {
+        $query->whereBetween('order_datetime', [$request->from, $request->to]);
+    }
+
+    // Optional: pagination
+    $perPage = $request->get('per_page', 10);
+    $page = $request->get('page', 1);
+
+    $orders = $query->paginate($perPage, ['*'], 'page', $page);
+
+    return response()->json($orders);
+}
+
 
     // Create Order
     public function store(Request $request)
